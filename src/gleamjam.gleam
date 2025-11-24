@@ -49,10 +49,6 @@ const stars_positions = [
   #(950.0, 950.0),
 ]
 
-fn animate_sequence(seq: Sequence) -> Animation {
-  todo
-}
-
 fn view_star(pos: #(Float, Float)) {
   p.circle(50.0) |> p.translate_xy(pos.0, pos.1) |> p.fill(colour.pink)
 }
