@@ -17,6 +17,8 @@ fn fix(f) {
 pub fn new(view: fn(Float) -> Option(p.Picture)) -> Animation {
   let step =
     fix(fn(step, time) {
+      echo "step"
+      echo time
       use picture <- option.then(view(time))
       option.Some(#(Animation(elapsed_time: time, step:), picture))
     })

@@ -3,6 +3,7 @@ import asset
 import gleam/float
 import gleam/int
 import gleam/list
+import gleam/option
 import gleam_community/colour
 import paint.{type Picture} as p
 import paint/canvas
@@ -49,21 +50,69 @@ const stars_positions = [
   #(950.0, 950.0),
 ]
 
+fn my_animation() -> Animation {
+  let a =
+    animation.new(fn(time) {
+      case float.round(time) {
+        t if t < 1000 ->
+          option.Some(p.circle(time *. 0.1) |> p.fill(colour.red))
+        t if t < 3000 ->
+          option.Some(p.circle(time *. 0.1) |> p.fill(colour.orange))
+        t if t < 4000 ->
+          option.Some(p.circle(time *. 0.1) |> p.fill(colour.red))
+        _ -> option.None
+      }
+    })
+
+  let b =
+    animation.new(fn(_) {
+      option.Some(p.square(300.0) |> p.fill(colour.dark_green))
+    })
+
+  //a |> animation.then(b)
+  a
+}
+
 fn view_star(pos: #(Float, Float)) {
   p.circle(50.0) |> p.translate_xy(pos.0, pos.1) |> p.fill(colour.pink)
 }
 
 type State {
-  State(mouse: #(Float, Float), time: Float, dt: Float, seed: seed.Seed)
+  State(
+    mouse: #(Float, Float),
+    time: Float,
+    dt: Float,
+    seed: seed.Seed,
+    anim: option.Option(#(Animation, Picture)),
+  )
 }
 
 fn init(_: canvas.Config) -> State {
-  State(mouse: #(0.0, 0.0), dt: 0.0, time: 0.0, seed: seed.random())
+  State(
+    mouse: #(0.0, 0.0),
+    dt: 0.0,
+    time: 0.0,
+    seed: seed.random(),
+    anim: my_animation() |> animation.play(0.0),
+  )
+}
+
+fn play(
+  anim: option.Option(#(Animation, Picture)),
+  dt dt: Float,
+) -> option.Option(#(Animation, Picture)) {
+  case anim {
+    option.None -> option.None
+    option.Some(#(anim, _)) -> animation.play(anim, dt:)
+  }
 }
 
 fn update(state: State, event: event.Event) -> State {
   case event {
-    event.Tick(time) -> State(..state, time:, dt: time -. state.time)
+    event.Tick(time) -> {
+      let dt = time -. state.time
+      State(..state, time:, dt:, anim: play(state.anim, dt:))
+    }
     event.MouseMoved(x, y) -> State(..state, mouse: #(x, y))
     _ -> state
   }
@@ -78,9 +127,9 @@ fn debug(state: State) {
         <> int.to_string(float.round(state.mouse.1)),
       px: 50,
     )
-    |> p.translate_xy(50.0, 50.0),
-    //p.text("Time: " <> float.to_string(state.dt), px: 50)
-  //  |> p.translate_xy(80.0, 80.0),
+      |> p.translate_xy(50.0, 50.0),
+    p.text("Time: " <> float.to_string(state.dt), px: 50)
+      |> p.translate_xy(80.0, 80.0),
   ])
 }
 
@@ -91,8 +140,12 @@ fn view(state: State) -> Picture {
       |> p.translate_xy(100.0, 100.0),
     p.image(asset.lucy(), width_px: 128, height_px: 128),
     stars_positions |> list.map(view_star) |> p.combine,
+    case state.anim {
+      option.None -> p.blank()
+      option.Some(#(_, picture)) -> picture
+    }
+      |> p.translate_xy(500.0, 500.0),
     debug(state),
-    //
   ])
 }
 
