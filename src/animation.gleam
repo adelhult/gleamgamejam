@@ -1,3 +1,4 @@
+import gleam/float
 import gleam/option.{type Option}
 import paint as p
 
@@ -17,8 +18,6 @@ fn fix(f) {
 pub fn new(view: fn(Float) -> Option(p.Picture)) -> Animation {
   let step =
     fix(fn(step, time) {
-      echo "step"
-      echo time
       use picture <- option.then(view(time))
       option.Some(#(Animation(elapsed_time: time, step:), picture))
     })
@@ -34,12 +33,10 @@ pub fn play(
 }
 
 pub fn then(first: Animation, second: Animation) -> Animation {
-  Animation(elapsed_time: 0.0, step: fn(time) {
+  Animation(elapsed_time: first.elapsed_time, step: fn(time) {
     case first.step(time) {
       option.None -> {
-        let offsetted_second_animation =
-          Animation(..second, step: fn(t) { second.step(t -. time) })
-        offsetted_second_animation.step(time)
+        second.step(time -. first.elapsed_time)
       }
       option.Some(#(cont_first, picture)) -> {
         option.Some(#(then(cont_first, second), picture))

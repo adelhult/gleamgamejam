@@ -51,26 +51,33 @@ const stars_positions = [
 ]
 
 fn my_animation() -> Animation {
-  let a =
+  let circle =
     animation.new(fn(time) {
-      case float.round(time) {
-        t if t < 1000 ->
+      case time {
+        t if t <. 1000.0 ->
           option.Some(p.circle(time *. 0.1) |> p.fill(colour.red))
-        t if t < 3000 ->
+        t if t <. 3000.0 ->
           option.Some(p.circle(time *. 0.1) |> p.fill(colour.orange))
-        t if t < 4000 ->
+        t if t <. 4000.0 ->
           option.Some(p.circle(time *. 0.1) |> p.fill(colour.red))
         _ -> option.None
       }
     })
 
-  let b =
-    animation.new(fn(_) {
-      option.Some(p.square(300.0) |> p.fill(colour.dark_green))
+  let square =
+    animation.new(fn(time) {
+      case time {
+        t if t <. 1000.0 ->
+          option.Some(p.square(time *. 0.1) |> p.fill(colour.red))
+        t if t <. 3000.0 ->
+          option.Some(p.square(time *. 0.1) |> p.fill(colour.orange))
+        t if t <. 6000.0 ->
+          option.Some(p.square(time *. 0.1) |> p.fill(colour.red))
+        _ -> option.None
+      }
     })
 
-  //a |> animation.then(b)
-  a
+  circle |> animation.then(square)
 }
 
 fn view_star(pos: #(Float, Float)) {
