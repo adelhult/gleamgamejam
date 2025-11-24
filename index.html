@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Gleam Game Jam 2025️</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                background: white;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+
+            #canvas {
+                width: 100%;
+                aspect-ratio: 16 / 9;
+                border: none;
+                background: lightskyblue;
+            }
+
+            @media (min-aspect-ratio: 16/9) {
+                #canvas {
+                    height: 95dvh;
+                    width: calc(95dvh * (16 / 9));
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas" width="1920" height="1080"></canvas>
+        <script type="module">
+            import { main } from "./build/dev/javascript/gleamjam/gleamjam.mjs";
+            main();
+        </script>
+        <image id="lucy" src="lucy.svg" style="display: none" />
+    </body>
+</html>
