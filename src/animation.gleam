@@ -1,4 +1,3 @@
-import gleam/float
 import gleam/option.{type Option}
 import paint as p
 
@@ -7,12 +6,6 @@ pub opaque type Animation {
     elapsed_time: Float,
     step: fn(Float) -> Option(#(Animation, p.Picture)),
   )
-}
-
-/// Fixpoint combinator to get around the fact that Gleam does not allow
-/// recursive closures. Borrowed from: https://hexdocs.pm/funtil/funtil.html#fix
-fn fix(f) {
-  fn(x) { f(fix(f), x) }
 }
 
 pub fn new(view: fn(Float) -> Option(p.Picture)) -> Animation {
@@ -43,4 +36,10 @@ pub fn then(first: Animation, second: Animation) -> Animation {
       }
     }
   })
+}
+
+/// Fixpoint combinator to get around the fact that Gleam does not allow
+/// recursive closures. Borrowed from: https://hexdocs.pm/funtil/funtil.html#fix
+fn fix(f) {
+  fn(x) { f(fix(f), x) }
 }
