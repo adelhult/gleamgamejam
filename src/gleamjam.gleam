@@ -22,15 +22,11 @@ import prng/seed
 
 fn random_sequence(seed: seed.Seed, length: Int) -> #(Sequence, seed.Seed) {
   let gen_star_index =
-    random.int(0, list.length(stars_positions) - 1) |> random.map(StarIndex)
+    random.int(0, list.length(stars) - 1) |> random.map(StarIndex)
   let gen_sequence =
     random.fixed_size_list(gen_star_index, length) |> random.map(Sequence)
 
   random.step(gen_sequence, seed)
-}
-
-fn animate_star(head: StarIndex) -> Animated(Picture) {
-  todo
 }
 
 type StarIndex {
@@ -41,54 +37,53 @@ type Sequence {
   Sequence(List(StarIndex))
 }
 
-fn black() {
-  let assert Ok(black) = colour.from_rgb_hex(0x1e1e1e)
-  black
+type StarInfo {
+  StarInfo(
+    pos: #(Float, Float),
+    normal_image: fn() -> p.Image,
+    hovered_image: fn() -> p.Image,
+    blinking_image: fn() -> p.Image,
+  )
 }
 
-// TODO: maybe match exactly with https://en.wikipedia.org/wiki/Great_Diamond
-const stars_positions = [
-  #(600.0, 600.0),
-  #(950.0, 150.0),
-  #(1300.0, 600.0),
-  #(950.0, 950.0),
+fn get_star(idx: StarIndex) -> StarInfo {
+  let StarIndex(idx) = idx
+  let assert Ok(star) =
+    stars |> list.index_map(fn(x, i) { #(i, x) }) |> list.key_find(idx)
+  star
+}
+
+const stars = [
+  StarInfo(
+    pos: #(600.0, 600.0),
+    normal_image: asset.lucy,
+    hovered_image: asset.lucy,
+    blinking_image: asset.lucy,
+  ),
+  StarInfo(
+    pos: #(950.0, 100.0),
+    normal_image: asset.lucy,
+    hovered_image: asset.lucy,
+    blinking_image: asset.lucy,
+  ),
+  StarInfo(
+    pos: #(1300.0, 600.0),
+    normal_image: asset.lucy,
+    hovered_image: asset.lucy,
+    blinking_image: asset.lucy,
+  ),
+  StarInfo(
+    pos: #(950.0, 850.0),
+    normal_image: asset.lucy,
+    hovered_image: asset.lucy,
+    blinking_image: asset.lucy,
+  ),
 ]
 
-fn my_animation() -> Animated(Picture) {
-  let circle =
-    animation.new(
-      fn(time) {
-        case time {
-          t if t <. 0.1 -> p.circle(time *. 150.0 +. 50.0) |> p.fill(colour.red)
-          t if t <. 0.5 ->
-            p.circle(time *. 150.0 +. 50.0) |> p.fill(colour.orange)
-          t if t <. 0.8 -> p.circle(time *. 150.0 +. 50.0) |> p.fill(colour.red)
-          _ -> p.circle(time *. 150.0 +. 50.0) |> p.fill(colour.red)
-        }
-      },
-      duration: 5000.0,
-    )
-
-  let square =
-    animation.new(
-      fn(time) {
-        case time {
-          t if t <. 0.1 -> p.square(time *. 150.0 +. 50.0) |> p.fill(colour.red)
-          t if t <. 0.5 ->
-            p.square(time *. 150.0 +. 50.0) |> p.fill(colour.orange)
-          t if t <. 0.8 -> p.square(time *. 150.0 +. 50.0) |> p.fill(colour.red)
-          _ -> p.square(time *. 150.0 +. 50.0) |> p.fill(colour.red)
-        }
-      },
-      duration: 3000.0,
-    )
-
-  //circle |> animation.then(square)
-  animation.sequence([circle, square])
-}
-
-fn view_star(pos: #(Float, Float)) {
-  p.circle(50.0) |> p.translate_xy(pos.0, pos.1) |> p.fill(colour.pink)
+fn view_star(star: StarInfo) {
+  p.image(star.normal_image(), width_px: 150, height_px: 150)
+  |> p.translate_xy(star.pos.0, star.pos.1)
+  |> p.fill(colour.pink)
 }
 
 type State {
@@ -97,8 +92,24 @@ type State {
     time: Float,
     dt: Float,
     seed: seed.Seed,
-    anim: option.Option(#(Animated(Picture), Picture)),
+    step: Step,
   )
+}
+
+fn title_animation() -> Animated(Picture) {
+  animation.new(
+    fn(t) {
+      p.circle(t *. 400.0)
+      |> p.fill(colour.dark_orange)
+      |> p.translate_xy(t *. 1500.0, t *. 1000.0)
+    },
+    duration: 5000.0,
+  )
+}
+
+type Step {
+  TitleStep(Animated(Picture))
+  ShowSequenceStep
 }
 
 fn init(_: canvas.Config) -> State {
@@ -107,25 +118,28 @@ fn init(_: canvas.Config) -> State {
     dt: 0.0,
     time: 0.0,
     seed: seed.random(),
-    anim: my_animation() |> animation.play(0.0),
+    step: TitleStep(title_animation()),
   )
-}
-
-fn play(
-  anim: option.Option(#(Animated(Picture), Picture)),
-  dt dt: Float,
-) -> option.Option(#(Animated(Picture), Picture)) {
-  case anim {
-    option.None -> option.None
-    option.Some(#(anim, _)) -> animation.play(anim, dt:)
-  }
 }
 
 fn update(state: State, event: event.Event) -> State {
   case event {
     event.Tick(time) -> {
       let dt = time -. state.time
-      State(..state, time:, dt:, anim: play(state.anim, dt:))
+      let state = State(..state, time:, dt:)
+
+      let step = case state.step {
+        TitleStep(anim) -> {
+          let anim = animation.play(anim, dt:)
+          case animation.view_current(anim) {
+            option.None -> ShowSequenceStep
+            _ -> TitleStep(anim)
+          }
+        }
+        step -> step
+      }
+
+      State(..state, step:)
     }
     event.MouseMoved(x, y) -> State(..state, mouse: #(x, y))
     _ -> state
@@ -140,10 +154,10 @@ fn debug(state: State) {
         <> ", "
         <> int.to_string(float.round(state.mouse.1)),
       px: 50,
-    )
-      |> p.translate_xy(50.0, 50.0),
-    p.text("Time: " <> float.to_string(state.dt), px: 50)
-      |> p.translate_xy(80.0, 80.0),
+    ),
+    //   |> p.translate_xy(50.0, 50.0),
+  // p.text("Time: " <> float.to_string(state.dt), px: 50)
+  //   |> p.translate_xy(80.0, 80.0),
   ])
 }
 
@@ -158,15 +172,12 @@ fn solid_background() {
 fn view(state: State) -> Picture {
   p.combine([
     solid_background(),
-    p.image(asset.lucy(), width_px: 128, height_px: 128)
-      |> p.translate_xy(100.0, 100.0),
-    p.image(asset.lucy(), width_px: 128, height_px: 128),
-    stars_positions |> list.map(view_star) |> p.combine,
-    case state.anim {
-      option.None -> p.blank()
-      option.Some(#(_, picture)) -> picture
-    }
-      |> p.translate_xy(500.0, 500.0),
+    stars |> list.map(view_star) |> p.combine,
+    case state.step {
+      ShowSequenceStep -> p.blank()
+      TitleStep(anim) ->
+        animation.view_current(anim) |> option.unwrap(p.blank())
+    },
     debug(state),
   ])
 }
