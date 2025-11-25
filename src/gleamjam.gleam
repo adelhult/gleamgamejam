@@ -1,4 +1,4 @@
-import animation.{type Animation}
+import animation.{type Animated}
 import asset
 import gleam/float
 import gleam/int
@@ -29,6 +29,18 @@ fn random_sequence(seed: seed.Seed, length: Int) -> #(Sequence, seed.Seed) {
   random.step(gen_sequence, seed)
 }
 
+fn animate_sequence(seq: Sequence) -> Animated(Picture) {
+  case seq {
+    Sequence([head, ..rest]) ->
+      animate_star(head) |> animation.then(animate_sequence(Sequence(rest)))
+    Sequence([]) -> animation.none()
+  }
+}
+
+fn animate_star(head: StarIndex) -> Animated(Picture) {
+  todo
+}
+
 type StarIndex {
   StarIndex(Int)
 }
@@ -50,7 +62,7 @@ const stars_positions = [
   #(950.0, 950.0),
 ]
 
-fn my_animation() -> Animation {
+fn my_animation() -> Animated(Picture) {
   let circle =
     animation.new(fn(time) {
       case time {
@@ -90,7 +102,7 @@ type State {
     time: Float,
     dt: Float,
     seed: seed.Seed,
-    anim: option.Option(#(Animation, Picture)),
+    anim: option.Option(#(Animated(Picture), Picture)),
   )
 }
 
@@ -105,9 +117,9 @@ fn init(_: canvas.Config) -> State {
 }
 
 fn play(
-  anim: option.Option(#(Animation, Picture)),
+  anim: option.Option(#(Animated(Picture), Picture)),
   dt dt: Float,
-) -> option.Option(#(Animation, Picture)) {
+) -> option.Option(#(Animated(Picture), Picture)) {
   case anim {
     option.None -> option.None
     option.Some(#(anim, _)) -> animation.play(anim, dt:)

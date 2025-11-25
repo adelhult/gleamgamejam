@@ -1,14 +1,11 @@
 import gleam/option.{type Option}
 import paint as p
 
-pub opaque type Animation {
-  Animation(
-    elapsed_time: Float,
-    step: fn(Float) -> Option(#(Animation, p.Picture)),
-  )
+pub opaque type Animated(a) {
+  Animation(elapsed_time: Float, step: fn(Float) -> Option(#(Animated(a), a)))
 }
 
-pub fn new(view: fn(Float) -> Option(p.Picture)) -> Animation {
+pub fn new(view: fn(Float) -> Option(a)) -> Animated(a) {
   let step =
     fix(fn(step, time) {
       use picture <- option.then(view(time))
@@ -17,15 +14,12 @@ pub fn new(view: fn(Float) -> Option(p.Picture)) -> Animation {
   Animation(elapsed_time: 0.0, step:)
 }
 
-pub fn play(
-  animation: Animation,
-  dt dt: Float,
-) -> Option(#(Animation, p.Picture)) {
+pub fn play(animation: Animated(a), dt dt: Float) -> Option(#(Animated(a), a)) {
   let Animation(elapsed_time:, step:) = animation
   step(elapsed_time +. dt)
 }
 
-pub fn then(first: Animation, second: Animation) -> Animation {
+pub fn then(first: Animated(a), second: Animated(a)) -> Animated(a) {
   Animation(elapsed_time: first.elapsed_time, step: fn(time) {
     case first.step(time) {
       option.None -> {
@@ -36,6 +30,18 @@ pub fn then(first: Animation, second: Animation) -> Animation {
       }
     }
   })
+}
+
+pub fn timeout(animation: Animated(a), max_time: Float) -> Animated(a) {
+  todo
+}
+
+pub fn none() -> Animated(a) {
+  new(fn(_) { option.None })
+}
+
+pub fn constant(picture: a) -> Animated(a) {
+  new(fn(_) { option.Some(picture) })
 }
 
 /// Fixpoint combinator to get around the fact that Gleam does not allow
