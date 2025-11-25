@@ -97,14 +97,23 @@ type State {
 }
 
 fn title_animation() -> Animated(Picture) {
-  animation.new(
-    fn(t) {
-      p.circle(t *. 400.0)
-      |> p.fill(colour.dark_orange)
-      |> p.translate_xy(t *. 1500.0, t *. 1000.0)
-    },
-    duration: 5000.0,
-  )
+  let partial_line = fn(start: #(Float, Float), end: #(Float, Float), t: Float) {
+    let x = start.0 +. t *. { end.0 -. start.0 }
+    let y = start.1 +. t *. { end.1 -. start.1 }
+    p.lines([start, #(x, y)])
+    |> p.stroke(colour.white, 4.0)
+  }
+
+  let animated_line = fn(start, end) {
+    animation.new(fn(t) { partial_line(start, end, t) }, duration: 700.0)
+  }
+
+  animation.sequence([
+    animated_line(get_star(StarIndex(0)).pos, get_star(StarIndex(1)).pos),
+    animated_line(get_star(StarIndex(1)).pos, get_star(StarIndex(2)).pos),
+    animated_line(get_star(StarIndex(2)).pos, get_star(StarIndex(3)).pos),
+    animated_line(get_star(StarIndex(3)).pos, get_star(StarIndex(0)).pos),
+  ])
 }
 
 type Step {
@@ -154,9 +163,9 @@ fn debug(state: State) {
         <> ", "
         <> int.to_string(float.round(state.mouse.1)),
       px: 50,
-    ),
-    //   |> p.translate_xy(50.0, 50.0),
-  // p.text("Time: " <> float.to_string(state.dt), px: 50)
+    )
+    |> p.translate_xy(50.0, 50.0),
+    // p.text("Time: " <> float.to_string(state.dt), px: 50)
   //   |> p.translate_xy(80.0, 80.0),
   ])
 }
@@ -172,12 +181,13 @@ fn solid_background() {
 fn view(state: State) -> Picture {
   p.combine([
     solid_background(),
-    stars |> list.map(view_star) |> p.combine,
     case state.step {
       ShowSequenceStep -> p.blank()
       TitleStep(anim) ->
         animation.view_current(anim) |> option.unwrap(p.blank())
     },
+    stars |> list.map(view_star) |> p.combine,
+
     debug(state),
   ])
 }

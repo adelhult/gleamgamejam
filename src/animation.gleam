@@ -2,6 +2,8 @@ import gleam/float
 import gleam/option.{type Option}
 
 pub opaque type Animated(a) {
+  // TODO: not really any need to store 'a' here, could compute on demand if I split up
+  // 'step' and 'view' in AnimationState.
   Animated(Option(#(AnimationState(a), a)))
 }
 
