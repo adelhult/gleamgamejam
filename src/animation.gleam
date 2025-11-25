@@ -1,9 +1,8 @@
 import gleam/float
 import gleam/option.{type Option}
 
-/// A finite animation
 pub opaque type Animated(a) {
-  Animation(
+  Animated(
     duration: Float,
     elapsed_time: Float,
     step: fn(Float) -> Option(#(Animated(a), a)),
@@ -27,23 +26,20 @@ pub fn new(view: fn(Float) -> a, duration duration: Float) -> Animated(a) {
             }
             |> float.clamp(0.0, 1.0)
           let picture = view(normalized)
-          option.Some(#(
-            Animation(elapsed_time: time, step:, duration:),
-            picture,
-          ))
+          option.Some(#(Animated(elapsed_time: time, step:, duration:), picture))
         }
       }
     })
-  Animation(elapsed_time: 0.0, step:, duration:)
+  Animated(elapsed_time: 0.0, step:, duration:)
 }
 
 pub fn play(animation: Animated(a), dt dt: Float) -> Option(#(Animated(a), a)) {
-  let Animation(elapsed_time:, step:, ..) = animation
+  let Animated(elapsed_time:, step:, ..) = animation
   step(elapsed_time +. dt)
 }
 
 pub fn then(first: Animated(a), second: Animated(a)) -> Animated(a) {
-  Animation(
+  Animated(
     elapsed_time: first.elapsed_time,
     duration: first.duration +. second.duration,
     step: fn(time) {
@@ -59,8 +55,19 @@ pub fn then(first: Animated(a), second: Animated(a)) -> Animated(a) {
   )
 }
 
+pub fn none() -> Animated(a) {
+  Animated(duration: 0.0, elapsed_time: 0.0, step: fn(_) { option.None })
+}
+
 pub fn constant(picture: a, duration duration: Float) -> Animated(a) {
   new(fn(_) { picture }, duration:)
+}
+
+pub fn sequence(seq: List(Animated(a))) -> Animated(a) {
+  case seq {
+    [] -> none()
+    [anim, ..rest] -> anim |> then(sequence(rest))
+  }
 }
 
 /// Fixpoint combinator to get around the fact that Gleam does not allow

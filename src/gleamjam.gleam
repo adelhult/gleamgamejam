@@ -29,14 +29,6 @@ fn random_sequence(seed: seed.Seed, length: Int) -> #(Sequence, seed.Seed) {
   random.step(gen_sequence, seed)
 }
 
-// fn animate_sequence(seq: Sequence) -> Animated(Picture) {
-//   case seq {
-//     Sequence([head, ..rest]) ->
-//       animate_star(head) |> animation.then(animate_sequence(Sequence(rest)))
-//     Sequence([]) -> animation.none()
-//   }
-// }
-
 fn animate_star(head: StarIndex) -> Animated(Picture) {
   todo
 }
@@ -91,7 +83,8 @@ fn my_animation() -> Animated(Picture) {
       duration: 3000.0,
     )
 
-  circle |> animation.then(square)
+  //circle |> animation.then(square)
+  animation.sequence([circle, square])
 }
 
 fn view_star(pos: #(Float, Float)) {
@@ -154,9 +147,17 @@ fn debug(state: State) {
   ])
 }
 
+const canvas_width = 1920.0
+
+const canvas_height = 1080.0
+
+fn solid_background() {
+  p.rectangle(canvas_width, canvas_height) |> p.fill(p.colour_hex("#003459"))
+}
+
 fn view(state: State) -> Picture {
   p.combine([
-    //p.rectangle(1920.0, 1080.0) |> p.fill(black()),
+    solid_background(),
     p.image(asset.lucy(), width_px: 128, height_px: 128)
       |> p.translate_xy(100.0, 100.0),
     p.image(asset.lucy(), width_px: 128, height_px: 128),

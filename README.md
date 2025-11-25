@@ -25,3 +25,7 @@ Further documentation can be found at <https://hexdocs.pm/gleamjam>.
 gleam run   # Run the project
 gleam test  # Run the tests
 ```
+
+
+# Assets
+https://game-icons.net/1x1/delapouite/sparkles.html
