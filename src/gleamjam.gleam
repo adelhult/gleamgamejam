@@ -29,13 +29,13 @@ fn random_sequence(seed: seed.Seed, length: Int) -> #(Sequence, seed.Seed) {
   random.step(gen_sequence, seed)
 }
 
-fn animate_sequence(seq: Sequence) -> Animated(Picture) {
-  case seq {
-    Sequence([head, ..rest]) ->
-      animate_star(head) |> animation.then(animate_sequence(Sequence(rest)))
-    Sequence([]) -> animation.none()
-  }
-}
+// fn animate_sequence(seq: Sequence) -> Animated(Picture) {
+//   case seq {
+//     Sequence([head, ..rest]) ->
+//       animate_star(head) |> animation.then(animate_sequence(Sequence(rest)))
+//     Sequence([]) -> animation.none()
+//   }
+// }
 
 fn animate_star(head: StarIndex) -> Animated(Picture) {
   todo
@@ -64,30 +64,32 @@ const stars_positions = [
 
 fn my_animation() -> Animated(Picture) {
   let circle =
-    animation.new(fn(time) {
-      case time {
-        t if t <. 1000.0 ->
-          option.Some(p.circle(time *. 0.1) |> p.fill(colour.red))
-        t if t <. 3000.0 ->
-          option.Some(p.circle(time *. 0.1) |> p.fill(colour.orange))
-        t if t <. 4000.0 ->
-          option.Some(p.circle(time *. 0.1) |> p.fill(colour.red))
-        _ -> option.None
-      }
-    })
+    animation.new(
+      fn(time) {
+        case time {
+          t if t <. 0.1 -> p.circle(time *. 150.0 +. 50.0) |> p.fill(colour.red)
+          t if t <. 0.5 ->
+            p.circle(time *. 150.0 +. 50.0) |> p.fill(colour.orange)
+          t if t <. 0.8 -> p.circle(time *. 150.0 +. 50.0) |> p.fill(colour.red)
+          _ -> p.circle(time *. 150.0 +. 50.0) |> p.fill(colour.red)
+        }
+      },
+      duration: 5000.0,
+    )
 
   let square =
-    animation.new(fn(time) {
-      case time {
-        t if t <. 1000.0 ->
-          option.Some(p.square(time *. 0.1) |> p.fill(colour.red))
-        t if t <. 3000.0 ->
-          option.Some(p.square(time *. 0.1) |> p.fill(colour.orange))
-        t if t <. 6000.0 ->
-          option.Some(p.square(time *. 0.1) |> p.fill(colour.red))
-        _ -> option.None
-      }
-    })
+    animation.new(
+      fn(time) {
+        case time {
+          t if t <. 0.1 -> p.square(time *. 150.0 +. 50.0) |> p.fill(colour.red)
+          t if t <. 0.5 ->
+            p.square(time *. 150.0 +. 50.0) |> p.fill(colour.orange)
+          t if t <. 0.8 -> p.square(time *. 150.0 +. 50.0) |> p.fill(colour.red)
+          _ -> p.square(time *. 150.0 +. 50.0) |> p.fill(colour.red)
+        }
+      },
+      duration: 3000.0,
+    )
 
   circle |> animation.then(square)
 }
