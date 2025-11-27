@@ -1,4 +1,4 @@
-import animation.{type Animated}
+import animation.{type Animation, type PlayingAnimation}
 import asset
 import gleam/float
 import gleam/int
@@ -8,6 +8,7 @@ import gleam_community/colour
 import paint.{type Picture} as p
 import paint/canvas
 import paint/event
+import paint_animation
 import prng/random
 import prng/seed
 
@@ -96,7 +97,7 @@ type State {
   )
 }
 
-fn title_animation() -> Animated(Picture) {
+fn title_animation() -> Animation(Picture) {
   let partial_line = fn(start: #(Float, Float), end: #(Float, Float), t: Float) {
     let x = start.0 +. t *. { end.0 -. start.0 }
     let y = start.1 +. t *. { end.1 -. start.1 }
@@ -105,19 +106,32 @@ fn title_animation() -> Animated(Picture) {
   }
 
   let animated_line = fn(start, end) {
-    animation.new(fn(t) { partial_line(start, end, t) }, duration: 700.0)
+    let assert Ok(animation) =
+      animation.new(
+        fn(t) {
+          echo t
+          partial_line(start, end, t)
+        },
+        duration: 700.0,
+      )
+    animation
   }
 
-  animation.sequence([
-    animated_line(get_star(StarIndex(0)).pos, get_star(StarIndex(1)).pos),
-    animated_line(get_star(StarIndex(1)).pos, get_star(StarIndex(2)).pos),
-    animated_line(get_star(StarIndex(2)).pos, get_star(StarIndex(3)).pos),
-    animated_line(get_star(StarIndex(3)).pos, get_star(StarIndex(0)).pos),
-  ])
+  animated_line(get_star(StarIndex(0)).pos, get_star(StarIndex(1)).pos)
+  |> paint_animation.parallel(
+    animated_line(get_star(StarIndex(1)).pos, get_star(StarIndex(2)).pos)
+    |> paint_animation.parallel(
+      animated_line(get_star(StarIndex(2)).pos, get_star(StarIndex(3)).pos)
+      |> paint_animation.parallel(animated_line(
+        get_star(StarIndex(3)).pos,
+        get_star(StarIndex(0)).pos,
+      )),
+    ),
+  )
 }
 
 type Step {
-  TitleStep(Animated(Picture))
+  TitleStep(PlayingAnimation(Picture))
   ShowSequenceStep
 }
 
@@ -127,7 +141,7 @@ fn init(_: canvas.Config) -> State {
     dt: 0.0,
     time: 0.0,
     seed: seed.random(),
-    step: TitleStep(title_animation()),
+    step: TitleStep(title_animation() |> animation.start_playing()),
   )
 }
 
@@ -139,10 +153,9 @@ fn update(state: State, event: event.Event) -> State {
 
       let step = case state.step {
         TitleStep(anim) -> {
-          let anim = animation.play(anim, dt:)
-          case animation.view_current(anim) {
+          case animation.play(anim, dt:) {
             option.None -> ShowSequenceStep
-            _ -> TitleStep(anim)
+            option.Some(updated_anim) -> TitleStep(updated_anim)
           }
         }
         step -> step
@@ -183,8 +196,7 @@ fn view(state: State) -> Picture {
     solid_background(),
     case state.step {
       ShowSequenceStep -> p.blank()
-      TitleStep(anim) ->
-        animation.view_current(anim) |> option.unwrap(p.blank())
+      TitleStep(anim) -> animation.view_now(anim)
     },
     stars |> list.map(view_star) |> p.combine,
 

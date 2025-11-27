@@ -9,11 +9,15 @@ pub type Time =
 pub type Duration =
   Float
 
+// ------------ Play animations ----------
+
 pub opaque type PlayingAnimation(a) {
   PlayingAnimation(animation: Animation(a), elapsed_time: Duration)
 }
 
 pub fn start_playing(animation: Animation(a)) -> PlayingAnimation(a) {
+  // Note: we know that an animation must be longer than 0 time units, so we
+  // can safely construct a playing animation
   PlayingAnimation(animation, elapsed_time: 0.0)
 }
 
@@ -25,8 +29,8 @@ pub fn play(
   let duration = playing.animation.duration
 
   case time >. duration {
-    // animation has anded
     True -> {
+      // The animation has anded
       option.None
     }
     False -> {
@@ -47,6 +51,13 @@ pub fn view_now(playing: PlayingAnimation(a)) -> a {
   playing.animation.view(normalized_time)
 }
 
+pub fn view_at(animation: Animation(a), time time: Time) -> a {
+  let time = float.clamp(0.0, time, 1.0)
+  animation.view(time)
+}
+
+// ------------ Create animations ----------
+
 pub opaque type Animation(a) {
   Animation(duration: Time, view: fn(Float) -> a)
 }
@@ -61,13 +72,30 @@ pub fn new(
   }
 }
 
+pub fn map(animation: Animation(a), with fun: fn(a) -> b) -> Animation(b) {
+  let assert Ok(mapped_animation) =
+    new(
+      fn(t) {
+        let a = animation.view(t)
+        fun(a)
+      },
+      duration: animation.duration,
+    )
+  mapped_animation
+}
+
 pub fn then(first: Animation(a), second: Animation(a)) -> Animation(a) {
   let full_duration = first.duration +. second.duration
   Animation(
     fn(time) {
       case time <. first.duration /. full_duration {
-        True -> first.view(time *. first.duration /. full_duration)
-        False -> second.view(time *. first.duration /. full_duration)
+        True -> first.view(time *. full_duration /. first.duration)
+        False ->
+          second.view(
+            { time -. first.duration /. full_duration }
+            *. full_duration
+            /. second.duration,
+          )
       }
     },
     duration: full_duration,
@@ -75,18 +103,17 @@ pub fn then(first: Animation(a), second: Animation(a)) -> Animation(a) {
 }
 
 pub fn parallel(
-  first: Animation(a),
-  second: Animation(a),
+  a: Animation(a),
+  b: Animation(a),
   using merge_op: fn(List(a)) -> a,
 ) -> Animation(a) {
-  let total_duration = float.max(first.duration, second.duration)
+  let total_duration = float.max(a.duration, b.duration)
   Animation(
     fn(time) {
-      let first_time = float.min(1.0, time *. total_duration /. first.duration)
-      let second_time =
-        float.min(1.0, time *. total_duration /. second.duration)
+      let first_time = float.min(1.0, time *. total_duration /. a.duration)
+      let second_time = float.min(1.0, time *. total_duration /. b.duration)
 
-      merge_op([first.view(first_time), second.view(second_time)])
+      merge_op([a.view(first_time), b.view(second_time)])
     },
     duration: total_duration,
   )
@@ -121,9 +148,4 @@ pub fn continue(
     empty(duration: first.duration, using: merge_op)
 
   parallel(first, wait_until_first_complete |> then(second), using: merge_op)
-}
-
-pub fn view_at(animation: Animation(a), time time: Time) -> a {
-  let time = float.clamp(0.0, time, 1.0)
-  animation.view(time)
 }
