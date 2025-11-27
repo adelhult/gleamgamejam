@@ -1,138 +1,129 @@
+//// Inspired by https://hackage.haskell.org/package/reanimate-1.1.6.0/docs/src/Reanimate.Animation.html
+
 import gleam/float
 import gleam/option.{type Option}
 
-pub opaque type Animated(a) {
-  // TODO: not really any need to store 'a' here, could compute on demand if I split up
-  // 'step' and 'view' in AnimationState.
-  Animated(Option(#(AnimationState(a), a)))
+pub type Time =
+  Float
+
+pub type Duration =
+  Float
+
+pub opaque type PlayingAnimation(a) {
+  PlayingAnimation(animation: Animation(a), elapsed_time: Duration)
 }
 
-pub fn new(view: fn(Float) -> a, duration duration: Float) {
-  let state = new_inner(view, duration:)
-  Animated(play_inner(state, dt: 0.0))
+pub fn start_playing(animation: Animation(a)) -> PlayingAnimation(a) {
+  PlayingAnimation(animation, elapsed_time: 0.0)
 }
 
-pub fn play(animated: Animated(a), dt dt: Float) -> Animated(a) {
-  case animated {
-    Animated(option.Some(#(state, _))) -> {
-      Animated(play_inner(state, dt:))
+pub fn play(
+  playing: PlayingAnimation(a),
+  dt dt: Time,
+) -> Option(PlayingAnimation(a)) {
+  let time = playing.elapsed_time +. dt
+  let duration = playing.animation.duration
+
+  case time >. duration {
+    // animation has anded
+    True -> {
+      option.None
     }
-    Animated(option.None) -> animated
-  }
-}
-
-pub fn then(first: Animated(a), second: Animated(a)) -> Animated(a) {
-  case first, second {
-    // if both animations actually exist, use the real `then` operation on their state
-    // and evaluate the result at this very moment
-    Animated(option.Some(#(first_anim, _))),
-      Animated(option.Some(#(second_anim, _)))
-    -> {
-      let new_anim = then_inner(first_anim, second_anim)
-      Animated(play_inner(new_anim, dt: 0.0))
+    False -> {
+      option.Some(PlayingAnimation(..playing, elapsed_time: time))
     }
-    // No need to chain, just use the second one
-    Animated(option.None), Animated(option.Some(_)) -> second
-    // No need to chain, just use the first one
-    Animated(option.Some(_)), Animated(option.None) -> first
-    // Just use an empty animation
-    Animated(option.None), Animated(option.None) -> none()
   }
 }
 
-pub fn view_current(animation: Animated(a)) -> Option(a) {
-  case animation {
-    Animated(option.Some(#(_, value))) -> option.Some(value)
-    Animated(option.None) -> option.None
+pub fn view_now(playing: PlayingAnimation(a)) -> a {
+  let time = playing.elapsed_time
+  let normalized_time =
+    case time {
+      0.0 -> 0.0
+      _ -> time /. playing.animation.duration
+    }
+    |> float.clamp(0.0, 1.0)
+
+  playing.animation.view(normalized_time)
+}
+
+pub opaque type Animation(a) {
+  Animation(duration: Time, view: fn(Float) -> a)
+}
+
+pub fn new(
+  view: fn(Time) -> a,
+  duration duration: Duration,
+) -> Result(Animation(a), Nil) {
+  case duration >. 0.0 {
+    False -> Error(Nil)
+    True -> Ok(Animation(duration:, view:))
   }
 }
 
-pub fn none() -> Animated(a) {
-  Animated(option.None)
+pub fn then(first: Animation(a), second: Animation(a)) -> Animation(a) {
+  let full_duration = first.duration +. second.duration
+  Animation(
+    fn(time) {
+      case time <. first.duration /. full_duration {
+        True -> first.view(time *. first.duration /. full_duration)
+        False -> second.view(time *. first.duration /. full_duration)
+      }
+    },
+    duration: full_duration,
+  )
 }
 
-pub fn constant(picture: a, duration duration: Float) -> Animated(a) {
+pub fn parallel(
+  first: Animation(a),
+  second: Animation(a),
+  using merge_op: fn(List(a)) -> a,
+) -> Animation(a) {
+  let total_duration = float.max(first.duration, second.duration)
+  Animation(
+    fn(time) {
+      let first_time = float.min(1.0, time *. total_duration /. first.duration)
+      let second_time =
+        float.min(1.0, time *. total_duration /. second.duration)
+
+      merge_op([first.view(first_time), second.view(second_time)])
+    },
+    duration: total_duration,
+  )
+}
+
+pub fn empty(
+  duration duration: Duration,
+  using merge_op: fn(List(a)) -> a,
+) -> Result(Animation(a), Nil) {
+  new(
+    fn(_) {
+      let empty_element = merge_op([])
+      empty_element
+    },
+    duration:,
+  )
+}
+
+pub fn constant(
+  picture: a,
+  duration duration: Duration,
+) -> Result(Animation(a), Nil) {
   new(fn(_) { picture }, duration:)
 }
 
-pub fn sequence(seq: List(Animated(a))) -> Animated(a) {
-  case seq {
-    [] -> none()
-    [anim, ..rest] -> anim |> then(sequence(rest))
-  }
+pub fn continue(
+  first: Animation(a),
+  second: Animation(a),
+  using merge_op: fn(List(a)) -> a,
+) -> Animation(a) {
+  let assert Ok(wait_until_first_complete) =
+    empty(duration: first.duration, using: merge_op)
+
+  parallel(first, wait_until_first_complete |> then(second), using: merge_op)
 }
 
-/// This is *really* the proper animation type,
-/// the wrapper is just there to make it more convenient to use
-/// in TEA style update/view functions without having to do too much pattern matching
-type AnimationState(a) {
-  AnimationState(
-    duration: Float,
-    elapsed_time: Float,
-    step: fn(Float) -> Option(#(AnimationState(a), a)),
-  )
-}
-
-fn new_inner(
-  view: fn(Float) -> a,
-  duration duration: Float,
-) -> AnimationState(a) {
-  let step =
-    fix(fn(step, time) {
-      case time >. duration {
-        // animation has anded
-        True -> {
-          option.None
-        }
-        // if still playing, normalize time and view the current frame
-        False -> {
-          let normalized =
-            case time {
-              0.0 -> 0.0
-              _ -> time /. duration
-            }
-            |> float.clamp(0.0, 1.0)
-          let picture = view(normalized)
-          option.Some(#(
-            AnimationState(elapsed_time: time, step:, duration:),
-            picture,
-          ))
-        }
-      }
-    })
-  AnimationState(elapsed_time: 0.0, step:, duration:)
-}
-
-fn play_inner(
-  animation: AnimationState(a),
-  dt dt: Float,
-) -> Option(#(AnimationState(a), a)) {
-  let AnimationState(elapsed_time:, step:, ..) = animation
-  step(elapsed_time +. dt)
-}
-
-fn then_inner(
-  first: AnimationState(a),
-  second: AnimationState(a),
-) -> AnimationState(a) {
-  AnimationState(
-    elapsed_time: first.elapsed_time,
-    duration: first.duration +. second.duration,
-    step: fn(time) {
-      case first.step(time) {
-        option.None -> {
-          second.step(time -. first.elapsed_time)
-        }
-        option.Some(#(cont_first, picture)) -> {
-          option.Some(#(then_inner(cont_first, second), picture))
-        }
-      }
-    },
-  )
-}
-
-/// Fixpoint combinator to get around the fact that Gleam does not allow
-/// recursive closures. Borrowed from: https://hexdocs.pm/funtil/funtil.html#fix
-fn fix(f) {
-  fn(x) { f(fix(f), x) }
+pub fn view_at(animation: Animation(a), time time: Time) -> a {
+  let time = float.clamp(0.0, time, 1.0)
+  animation.view(time)
 }
