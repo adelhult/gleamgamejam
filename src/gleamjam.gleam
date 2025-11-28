@@ -4,6 +4,7 @@ import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option
+import gleam/result
 import gleam_community/colour
 import paint.{type Picture} as p
 import paint/canvas
@@ -23,23 +24,24 @@ import prng/seed
 
 fn random_sequence(seed: seed.Seed, length: Int) -> #(Sequence, seed.Seed) {
   let gen_star_index =
-    random.int(0, list.length(stars) - 1) |> random.map(StarIndex)
+    random.int(0, list.length(stars) - 1) |> random.map(StarId)
   let gen_sequence =
     random.fixed_size_list(gen_star_index, length) |> random.map(Sequence)
 
   random.step(gen_sequence, seed)
 }
 
-type StarIndex {
-  StarIndex(Int)
+type StarId {
+  StarId(Int)
 }
 
 type Sequence {
-  Sequence(List(StarIndex))
+  Sequence(List(StarId))
 }
 
 type StarInfo {
   StarInfo(
+    id: StarId,
     pos: #(Float, Float),
     normal_image: fn() -> p.Image,
     hovered_image: fn() -> p.Image,
@@ -47,33 +49,35 @@ type StarInfo {
   )
 }
 
-fn get_star(idx: StarIndex) -> StarInfo {
-  let StarIndex(idx) = idx
-  let assert Ok(star) =
-    stars |> list.index_map(fn(x, i) { #(i, x) }) |> list.key_find(idx)
+fn get_star(id: StarId) -> StarInfo {
+  let assert Ok(star) = stars |> list.find(fn(star) { star.id == id })
   star
 }
 
 const stars = [
   StarInfo(
+    id: StarId(0),
     pos: #(600.0, 600.0),
     normal_image: asset.lucy,
     hovered_image: asset.lucy,
     blinking_image: asset.lucy,
   ),
   StarInfo(
+    id: StarId(1),
     pos: #(950.0, 100.0),
     normal_image: asset.lucy,
     hovered_image: asset.lucy,
     blinking_image: asset.lucy,
   ),
   StarInfo(
+    id: StarId(2),
     pos: #(1300.0, 600.0),
     normal_image: asset.lucy,
     hovered_image: asset.lucy,
     blinking_image: asset.lucy,
   ),
   StarInfo(
+    id: StarId(3),
     pos: #(950.0, 850.0),
     normal_image: asset.lucy,
     hovered_image: asset.lucy,
@@ -81,10 +85,17 @@ const stars = [
   ),
 ]
 
-fn view_star(star: StarInfo) {
-  p.image(star.normal_image(), width_px: 150, height_px: 150)
+fn view_star(star: StarInfo, highlight highlight: Bool) {
+  let star_pic =
+    p.image(star.normal_image(), width_px: 150, height_px: 150)
+    |> p.translate_xy(-150.0 /. 2.0, -150.0 /. 2.0)
+
+  // temp
+  case highlight {
+    False -> star_pic
+    True -> p.circle(75.0) |> p.fill(colour.white) |> p.concat(star_pic)
+  }
   |> p.translate_xy(star.pos.0, star.pos.1)
-  |> p.fill(colour.pink)
 }
 
 type State {
@@ -107,32 +118,31 @@ fn title_animation() -> Animation(Picture) {
 
   let animated_line = fn(start, end) {
     let assert Ok(animation) =
-      animation.new(
-        fn(t) {
-          echo t
-          partial_line(start, end, t)
-        },
-        duration: 700.0,
-      )
+      animation.new(fn(t) { partial_line(start, end, t) }, duration: 500.0)
     animation
   }
 
-  animated_line(get_star(StarIndex(0)).pos, get_star(StarIndex(1)).pos)
-  |> paint_animation.parallel(
-    animated_line(get_star(StarIndex(1)).pos, get_star(StarIndex(2)).pos)
-    |> paint_animation.parallel(
-      animated_line(get_star(StarIndex(2)).pos, get_star(StarIndex(3)).pos)
-      |> paint_animation.parallel(animated_line(
-        get_star(StarIndex(3)).pos,
-        get_star(StarIndex(0)).pos,
-      )),
-    ),
-  )
+  let assert Ok(wait) = paint_animation.empty(500.0)
+
+  animated_line(get_star(StarId(0)).pos, get_star(StarId(1)).pos)
+  |> paint_animation.continue(animated_line(
+    get_star(StarId(1)).pos,
+    get_star(StarId(2)).pos,
+  ))
+  |> paint_animation.continue(animated_line(
+    get_star(StarId(2)).pos,
+    get_star(StarId(3)).pos,
+  ))
+  |> paint_animation.continue(animated_line(
+    get_star(StarId(3)).pos,
+    get_star(StarId(0)).pos,
+  ))
+  |> paint_animation.continue(wait)
 }
 
 type Step {
   TitleStep(PlayingAnimation(Picture))
-  ShowSequenceStep
+  ShowSequenceStep(Sequence, PlayingAnimation(Picture))
 }
 
 fn init(_: canvas.Config) -> State {
@@ -145,23 +155,71 @@ fn init(_: canvas.Config) -> State {
   )
 }
 
+fn go_to_show_sequence(state: State) -> State {
+  let #(sequence, seed) = random_sequence(state.seed, 3)
+
+  State(
+    ..state,
+    seed:,
+    step: ShowSequenceStep(
+      sequence,
+      animation.start_playing(animate_sequence(sequence)),
+    ),
+  )
+}
+
+fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
+  let view_blink = fn(id: StarId) -> Picture {
+    stars
+    |> list.map(fn(star) { view_star(star, highlight: star.id == id) })
+    |> p.combine
+  }
+
+  let view_all =
+    stars
+    |> list.map(view_star(_, highlight: False))
+    |> p.combine
+
+  let Sequence(sequence) = sequence
+  let assert Ok(end) = paint_animation.empty(1.0)
+  let assert Ok(pause) = animation.constant(view_all, duration: 500.0)
+
+  case sequence {
+    [] -> end
+    [star_id, ..rest] ->
+      pause
+      |> paint_animation.then(
+        animation.constant(view_blink(star_id), duration: 1000.0)
+        |> result.lazy_unwrap(fn() { panic as "duration 0" }),
+      )
+      |> animation.then(animate_sequence(Sequence(rest)))
+  }
+}
+
 fn update(state: State, event: event.Event) -> State {
   case event {
     event.Tick(time) -> {
       let dt = time -. state.time
       let state = State(..state, time:, dt:)
 
-      let step = case state.step {
+      let state = case state.step {
         TitleStep(anim) -> {
           case animation.play(anim, dt:) {
-            option.None -> ShowSequenceStep
-            option.Some(updated_anim) -> TitleStep(updated_anim)
+            option.None -> go_to_show_sequence(state)
+            option.Some(updated_anim) ->
+              State(..state, step: TitleStep(updated_anim))
           }
         }
-        step -> step
+        ShowSequenceStep(sequence, anim) ->
+          case animation.play(anim, dt:) {
+            // TODO: implement 'guess' step
+            option.None -> go_to_show_sequence(state)
+            option.Some(updated_anim) ->
+              State(..state, step: ShowSequenceStep(sequence, updated_anim))
+          }
       }
 
-      State(..state, step:)
+      state
     }
     event.MouseMoved(x, y) -> State(..state, mouse: #(x, y))
     _ -> state
@@ -195,11 +253,9 @@ fn view(state: State) -> Picture {
   p.combine([
     solid_background(),
     case state.step {
-      ShowSequenceStep -> p.blank()
+      ShowSequenceStep(_, anim) -> animation.view_now(anim)
       TitleStep(anim) -> animation.view_now(anim)
     },
-    stars |> list.map(view_star) |> p.combine,
-
     debug(state),
   ])
 }
