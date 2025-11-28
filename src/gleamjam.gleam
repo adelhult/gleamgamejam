@@ -143,6 +143,7 @@ fn title_animation() -> Animation(Picture) {
 type Step {
   TitleStep(PlayingAnimation(Picture))
   ShowSequenceStep(Sequence, PlayingAnimation(Picture))
+  GuessStep(Sequence, correct_so_far: Int)
 }
 
 fn init(_: canvas.Config) -> State {
@@ -166,6 +167,10 @@ fn go_to_show_sequence(state: State) -> State {
       animation.start_playing(animate_sequence(sequence)),
     ),
   )
+}
+
+fn go_to_guess_step(sequence: Sequence) -> Step {
+  GuessStep(sequence, correct_so_far: 0)
 }
 
 fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
@@ -213,15 +218,18 @@ fn update(state: State, event: event.Event) -> State {
         ShowSequenceStep(sequence, anim) ->
           case animation.play(anim, dt:) {
             // TODO: implement 'guess' step
-            option.None -> go_to_show_sequence(state)
+            option.None -> State(..state, step: go_to_guess_step(sequence))
             option.Some(updated_anim) ->
               State(..state, step: ShowSequenceStep(sequence, updated_anim))
           }
+        GuessStep(_, _) -> state
       }
 
       state
     }
     event.MouseMoved(x, y) -> State(..state, mouse: #(x, y))
+    // TODO: handle keypresses in guess mode
+    event.MousePressed(event.MouseButtonLeft) -> state
     _ -> state
   }
 }
@@ -255,6 +263,9 @@ fn view(state: State) -> Picture {
     case state.step {
       ShowSequenceStep(_, anim) -> animation.view_now(anim)
       TitleStep(anim) -> animation.view_now(anim)
+      GuessStep(sequence, correct_so_far:) -> {
+        todo
+      }
     },
     debug(state),
   ])
