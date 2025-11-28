@@ -6,6 +6,7 @@ import gleam/list
 import gleam/option
 import gleam/result
 import gleam_community/colour
+import gleam_community/maths
 import paint.{type Picture} as p
 import paint/canvas
 import paint/event
@@ -108,6 +109,30 @@ type State {
   )
 }
 
+fn test_anim() {
+  let assert Ok(circle) =
+    animation.new(
+      fn(t) {
+        p.circle(30.0 +. 80.0 *. t)
+        |> p.translate_xy(
+          200.0 *. maths.cos(maths.pi() *. 2.0 *. t),
+          200.0 *. maths.sin(maths.pi() *. 2.0 *. t),
+        )
+      },
+      duration: 3000.0,
+    )
+  circle
+  |> animation.map(p.fill(_, colour.pink))
+  |> animation.ease(fn(t) { t *. t })
+  |> animation.parallel(
+    circle
+      |> animation.map(p.translate_y(_, 300.0))
+      |> animation.map(p.fill(_, colour.orange))
+      |> animation.ease(fn(t) { t *. t *. t }),
+    using: p.combine,
+  )
+}
+
 fn title_animation() -> Animation(Picture) {
   let partial_line = fn(start: #(Float, Float), end: #(Float, Float), t: Float) {
     let x = start.0 +. t *. { end.0 -. start.0 }
@@ -137,6 +162,7 @@ fn title_animation() -> Animation(Picture) {
     get_star(StarId(3)).pos,
     get_star(StarId(0)).pos,
   ))
+  |> animation.ease(fn(t) { t *. t *. t })
   |> paint_animation.continue(wait)
 }
 
@@ -147,6 +173,7 @@ type Step {
 }
 
 fn init(_: canvas.Config) -> State {
+  let assert Ok(wait) = animation.empty(6000.0, using: p.combine)
   State(
     mouse: #(0.0, 0.0),
     dt: 0.0,
