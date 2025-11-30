@@ -390,6 +390,14 @@ fn view(state: State) -> Picture {
         |> p.fill(colour.white)
         |> p.translate_xy(100.0, 100.0)
 
+      let game_over = case state.step {
+        GameOver ->
+          p.text("Game over, press space to restart ", px: 50)
+          |> p.fill(colour.white)
+          |> p.translate_xy(100.0, 150.0)
+        _ -> p.blank()
+      }
+
       p.combine([
         solid_background(),
         p.image(asset.starfield(), width_px: 1920, height_px: 1080),
@@ -417,6 +425,7 @@ fn view(state: State) -> Picture {
         },
         telescope(state.mouse),
         level,
+        game_over,
       ])
     }
   }
