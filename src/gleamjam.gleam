@@ -307,6 +307,16 @@ fn solid_background() {
   p.rectangle(canvas_width, canvas_height) |> p.fill(p.colour_hex("#00243D"))
 }
 
+fn telescope(center: #(Float, Float)) {
+  let scale = 2.0
+  p.image(asset.telescope(), width_px: 4084, height_px: 2297)
+  |> p.scale_uniform(scale)
+  |> p.translate_xy(
+    -4084.0 *. scale /. 2.0 +. center.0,
+    -2297.0 *. scale /. 2.0 +. center.1,
+  )
+}
+
 fn view(state: State) -> Picture {
   // TODO:
   let level = case state.level > 0 {
@@ -320,7 +330,6 @@ fn view(state: State) -> Picture {
   p.combine([
     solid_background(),
     p.image(asset.starfield(), width_px: 1920, height_px: 1080),
-    level,
     case state.step {
       ShowSequenceStep(_, anim) -> animation.view_now(anim)
       TitleStep(anim) ->
@@ -342,6 +351,8 @@ fn view(state: State) -> Picture {
         |> list.map(view_sad_star)
         |> p.combine
     },
+    telescope(state.mouse),
+    level,
   ])
 }
 

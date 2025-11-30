@@ -17,6 +17,7 @@ pub fn load_all(callback) {
       blue_sad(),
       pink_sad(),
       green_sad(),
+      telescope(),
     ],
     callback,
   )
@@ -72,6 +73,10 @@ pub fn pink_sad() {
 
 pub fn starfield() {
   canvas.image_from_src("./assets/starfield.svg")
+}
+
+pub fn telescope() {
+  canvas.image_from_src("./assets/telescope.png")
 }
 
 pub fn pickup0() {
