@@ -1,27 +1,18 @@
 import animation.{type Animation, type PlayingAnimation}
 import asset
+import audio
 import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option
 import gleam/result
 import gleam_community/colour
-import gleam_community/maths
 import paint.{type Picture} as p
 import paint/canvas
 import paint/event
 import paint_animation
 import prng/random
 import prng/seed
-
-// type State =
-// Intro
-//  (draw lines in the shape of a diamond)
-//  (draw title text)
-//  fade out
-// Show Sequence
-// Play (Sequence, correct)
-// Failed (what thing)
 
 fn random_sequence(seed: seed.Seed, length: Int) -> #(Sequence, seed.Seed) {
   let gen_star_index =
@@ -45,8 +36,9 @@ type StarInfo {
     id: StarId,
     pos: #(Float, Float),
     normal_image: fn() -> p.Image,
-    hovered_image: fn() -> p.Image,
     blinking_image: fn() -> p.Image,
+    sad_image: fn() -> p.Image,
+    sound: fn() -> audio.Audio,
   )
 }
 
@@ -58,78 +50,65 @@ fn get_star(id: StarId) -> StarInfo {
 const stars = [
   StarInfo(
     id: StarId(0),
-    pos: #(600.0, 600.0),
-    normal_image: asset.lucy,
-    hovered_image: asset.lucy,
-    blinking_image: asset.lucy,
+    pos: #(678.0, 430.0),
+    normal_image: asset.red,
+    blinking_image: asset.red_light,
+    sad_image: asset.red_sad,
+    sound: asset.pickup0,
   ),
   StarInfo(
     id: StarId(1),
-    pos: #(950.0, 100.0),
-    normal_image: asset.lucy,
-    hovered_image: asset.lucy,
-    blinking_image: asset.lucy,
+    pos: #(998.0, 130.0),
+    normal_image: asset.green,
+    blinking_image: asset.green_light,
+    sad_image: asset.green_sad,
+    sound: asset.pickup1,
   ),
   StarInfo(
     id: StarId(2),
-    pos: #(1300.0, 600.0),
-    normal_image: asset.lucy,
-    hovered_image: asset.lucy,
-    blinking_image: asset.lucy,
+    pos: #(1264.0, 520.0),
+    normal_image: asset.blue,
+    blinking_image: asset.blue_light,
+    sad_image: asset.blue_sad,
+    sound: asset.pickup2,
   ),
   StarInfo(
     id: StarId(3),
-    pos: #(950.0, 850.0),
-    normal_image: asset.lucy,
-    hovered_image: asset.lucy,
-    blinking_image: asset.lucy,
+    pos: #(869.0, 951.0),
+    normal_image: asset.pink,
+    blinking_image: asset.pink_light,
+    sad_image: asset.pink_sad,
+    sound: asset.pickup3,
   ),
 ]
 
 fn view_star(star: StarInfo, highlight highlight: Bool) {
-  let star_pic =
-    p.image(star.normal_image(), width_px: 150, height_px: 150)
-    |> p.translate_xy(-150.0 /. 2.0, -150.0 /. 2.0)
+  p.image(
+    case highlight {
+      False -> star.normal_image()
+      True -> star.blinking_image()
+    },
+    width_px: 150,
+    height_px: 150,
+  )
+  |> p.translate_xy(-150.0 /. 2.0, -150.0 /. 2.0)
+  |> p.translate_xy(star.pos.0, star.pos.1)
+}
 
-  // temp
-  case highlight {
-    False -> star_pic
-    True -> p.circle(75.0) |> p.fill(colour.white) |> p.concat(star_pic)
-  }
+fn view_sad_star(star: StarInfo) {
+  p.image(star.sad_image(), width_px: 150, height_px: 150)
+  |> p.translate_xy(-150.0 /. 2.0, -150.0 /. 2.0)
   |> p.translate_xy(star.pos.0, star.pos.1)
 }
 
 type State {
   State(
+    level: Int,
     mouse: #(Float, Float),
     time: Float,
     dt: Float,
     seed: seed.Seed,
     step: Step,
-  )
-}
-
-fn test_anim() {
-  let assert Ok(circle) =
-    animation.new(
-      fn(t) {
-        p.circle(30.0 +. 80.0 *. t)
-        |> p.translate_xy(
-          200.0 *. maths.cos(maths.pi() *. 2.0 *. t),
-          200.0 *. maths.sin(maths.pi() *. 2.0 *. t),
-        )
-      },
-      duration: 3000.0,
-    )
-  circle
-  |> animation.map(p.fill(_, colour.pink))
-  |> animation.ease(fn(t) { t *. t })
-  |> animation.parallel(
-    circle
-      |> animation.map(p.translate_y(_, 300.0))
-      |> animation.map(p.fill(_, colour.orange))
-      |> animation.ease(fn(t) { t *. t *. t }),
-    using: p.combine,
   )
 }
 
@@ -169,12 +148,13 @@ fn title_animation() -> Animation(Picture) {
 type Step {
   TitleStep(PlayingAnimation(Picture))
   ShowSequenceStep(Sequence, PlayingAnimation(Picture))
-  GuessStep(Sequence, correct_so_far: Int)
+  GuessStep(Sequence)
+  GameOver
 }
 
 fn init(_: canvas.Config) -> State {
-  let assert Ok(wait) = animation.empty(6000.0, using: p.combine)
   State(
+    level: 1,
     mouse: #(0.0, 0.0),
     dt: 0.0,
     time: 0.0,
@@ -184,7 +164,7 @@ fn init(_: canvas.Config) -> State {
 }
 
 fn go_to_show_sequence(state: State) -> State {
-  let #(sequence, seed) = random_sequence(state.seed, 3)
+  let #(sequence, seed) = random_sequence(state.seed, state.level)
 
   State(
     ..state,
@@ -196,8 +176,20 @@ fn go_to_show_sequence(state: State) -> State {
   )
 }
 
-fn go_to_guess_step(sequence: Sequence) -> Step {
-  GuessStep(sequence, correct_so_far: 0)
+// Really hacky, should absolutely *not* do side effects like this...
+fn with_sound(
+  animation: Animation(Picture),
+  sound: audio.Audio,
+) -> Animation(Picture) {
+  let assert Ok(sound_anim) =
+    animation.new(
+      fn(_) {
+        audio.play(sound, True)
+        p.blank()
+      },
+      duration: 1.0,
+    )
+  sound_anim |> paint_animation.continue(animation)
 }
 
 fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
@@ -214,7 +206,7 @@ fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
 
   let Sequence(sequence) = sequence
   let assert Ok(end) = paint_animation.empty(1.0)
-  let assert Ok(pause) = animation.constant(view_all, duration: 500.0)
+  let assert Ok(pause) = animation.constant(view_all, duration: 1000.0)
 
   case sequence {
     [] -> end
@@ -222,7 +214,8 @@ fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
       pause
       |> paint_animation.then(
         animation.constant(view_blink(star_id), duration: 1000.0)
-        |> result.lazy_unwrap(fn() { panic as "duration 0" }),
+        |> result.lazy_unwrap(fn() { panic as "duration 0" })
+        |> with_sound(get_star(star_id).sound()),
       )
       |> animation.then(animate_sequence(Sequence(rest)))
   }
@@ -244,21 +237,51 @@ fn update(state: State, event: event.Event) -> State {
         }
         ShowSequenceStep(sequence, anim) ->
           case animation.play(anim, dt:) {
-            // TODO: implement 'guess' step
-            option.None -> State(..state, step: go_to_guess_step(sequence))
+            option.None -> State(..state, step: GuessStep(sequence))
             option.Some(updated_anim) ->
               State(..state, step: ShowSequenceStep(sequence, updated_anim))
           }
-        GuessStep(_, _) -> state
+        GuessStep(Sequence([])) ->
+          go_to_show_sequence(State(..state, level: state.level + 1))
+        GuessStep(Sequence(_)) -> state
+        GameOver -> state
       }
 
       state
     }
     event.MouseMoved(x, y) -> State(..state, mouse: #(x, y))
-    // TODO: handle keypresses in guess mode
-    event.MousePressed(event.MouseButtonLeft) -> state
+    event.MousePressed(event.MouseButtonLeft) -> {
+      case state.step {
+        GuessStep(Sequence([current, ..rest])) -> {
+          let current_star = get_star(current)
+          case is_hovering_star(current_star, state.mouse) {
+            False ->
+              case list.any(stars, is_hovering_star(_, state.mouse)) {
+                False -> state
+                True -> {
+                  audio.play(asset.game_over(), False)
+                  State(..state, step: GameOver)
+                }
+              }
+            True -> {
+              audio.play(current_star.sound(), False)
+              State(..state, step: GuessStep(Sequence(rest)))
+            }
+          }
+        }
+        _ -> state
+      }
+    }
     _ -> state
   }
+}
+
+fn is_hovering_star(star: StarInfo, mouse_pos: #(Float, Float)) {
+  let r = 75.0
+  let dx = mouse_pos.0 -. star.pos.0
+  let dy = mouse_pos.1 -. star.pos.1
+  let distance_sq = dx *. dx +. dy *. dy
+  distance_sq <=. r *. r
 }
 
 fn debug(state: State) {
@@ -281,20 +304,44 @@ const canvas_width = 1920.0
 const canvas_height = 1080.0
 
 fn solid_background() {
-  p.rectangle(canvas_width, canvas_height) |> p.fill(p.colour_hex("#003459"))
+  p.rectangle(canvas_width, canvas_height) |> p.fill(p.colour_hex("#00243D"))
 }
 
 fn view(state: State) -> Picture {
+  // TODO:
+  let level = case state.level > 0 {
+    False -> p.blank()
+    True ->
+      p.text("Level " <> int.to_string(state.level), px: 50)
+      |> p.fill(colour.white)
+      |> p.translate_xy(100.0, 100.0)
+  }
+
   p.combine([
     solid_background(),
+    p.image(asset.starfield(), width_px: 1920, height_px: 1080),
+    level,
     case state.step {
       ShowSequenceStep(_, anim) -> animation.view_now(anim)
-      TitleStep(anim) -> animation.view_now(anim)
-      GuessStep(sequence, correct_so_far:) -> {
-        todo
+      TitleStep(anim) ->
+        p.combine([
+          animation.view_now(anim),
+          stars
+            |> list.map(view_star(_, False))
+            |> p.combine,
+        ])
+      GuessStep(_) -> {
+        stars
+        |> list.map(fn(star) {
+          view_star(star, is_hovering_star(star, state.mouse))
+        })
+        |> p.combine
       }
+      GameOver ->
+        stars
+        |> list.map(view_sad_star)
+        |> p.combine
     },
-    debug(state),
   ])
 }
 
