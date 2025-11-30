@@ -6,6 +6,7 @@ import gleam/int
 import gleam/list
 import gleam/option
 import gleam/result
+import gleam/string
 import gleam_community/colour
 import paint.{type Picture} as p
 import paint/canvas
@@ -112,6 +113,58 @@ type State {
   )
 }
 
+fn animate_text(text: String, speed speed: Float) -> Animation(String) {
+  let duration = speed *. int.to_float(string.length(text) + 1)
+  let assert Ok(anim) =
+    animation.new(
+      fn(t) {
+        let length = float.round(int.to_float(string.length(text)) *. t)
+        string.slice(text, at_index: 0, length:)
+      },
+      duration,
+    )
+  anim
+}
+
+fn tutorial_animation() -> Animation(Picture) {
+  let assert Ok(wait) = paint_animation.empty(800.0)
+  let assert Ok(wait_super_long_time) = paint_animation.empty(60_000.0)
+
+  let text_anim =
+    animate_text(
+      "Watching the night sky, you notice the Great Diamond asterism shining brighter than ever.",
+      speed: 50.0,
+    )
+    |> animation.map(fn(text) {
+      p.text(text, px: 30)
+      |> p.translate_y(500.0)
+    })
+    |> paint_animation.continue(wait)
+    |> paint_animation.continue(
+      animate_text("Remember the pattern, then repeat it.", speed: 50.0)
+      |> animation.map(fn(text) {
+        p.text(text, px: 30)
+        |> p.translate_y(500.0 +. 70.0 *. 1.0)
+      }),
+    )
+    |> paint_animation.continue(wait)
+    |> paint_animation.continue(
+      animate_text("Press Space to begin.", speed: 50.0)
+      |> animation.map(fn(text) {
+        p.text(text, px: 30)
+        |> p.translate_y(500.0 +. 70.0 *. 2.0)
+      }),
+    )
+    |> animation.map(p.translate_x(_, 300.0))
+    |> animation.map(p.fill(_, colour.white))
+
+  paint_animation.parallel(
+    wait
+      |> paint_animation.continue(text_anim),
+    wait_super_long_time,
+  )
+}
+
 fn title_animation() -> Animation(Picture) {
   let partial_line = fn(start: #(Float, Float), end: #(Float, Float), t: Float) {
     let x = start.0 +. t *. { end.0 -. start.0 }
@@ -146,6 +199,7 @@ fn title_animation() -> Animation(Picture) {
 }
 
 type Step {
+  TutorialStep(PlayingAnimation(Picture))
   TitleStep(PlayingAnimation(Picture))
   ShowSequenceStep(Sequence, PlayingAnimation(Picture))
   GuessStep(Sequence)
@@ -159,7 +213,7 @@ fn init(_: canvas.Config) -> State {
     dt: 0.0,
     time: 0.0,
     seed: seed.random(),
-    step: TitleStep(title_animation() |> animation.start_playing()),
+    step: TutorialStep(tutorial_animation() |> animation.start_playing()),
   )
 }
 
@@ -228,6 +282,18 @@ fn update(state: State, event: event.Event) -> State {
       let state = State(..state, time:, dt:)
 
       let state = case state.step {
+        TutorialStep(anim) -> {
+          case animation.play(anim, dt:) {
+            // If the long intro animation times out
+            option.None ->
+              State(
+                ..state,
+                step: TitleStep(title_animation() |> animation.start_playing()),
+              )
+            option.Some(updated_anim) ->
+              State(..state, step: TutorialStep(updated_anim))
+          }
+        }
         TitleStep(anim) -> {
           case animation.play(anim, dt:) {
             option.None -> go_to_show_sequence(state)
@@ -271,6 +337,17 @@ fn update(state: State, event: event.Event) -> State {
             }
           }
         }
+        _ -> state
+      }
+    }
+    event.KeyboardPressed(event.KeySpace) -> {
+      case state.step {
+        GameOver -> go_to_show_sequence(State(..state, level: 1))
+        TutorialStep(_) ->
+          State(
+            ..state,
+            step: TitleStep(title_animation() |> animation.start_playing()),
+          )
         _ -> state
       }
     }
@@ -320,41 +397,47 @@ fn telescope(center: #(Float, Float)) {
 }
 
 fn view(state: State) -> Picture {
-  let level = case state.level > 0 {
-    False -> p.blank()
-    True ->
-      p.text("Level " <> int.to_string(state.level), px: 50)
-      |> p.fill(colour.white)
-      |> p.translate_xy(100.0, 100.0)
-  }
-
-  p.combine([
-    solid_background(),
-    p.image(asset.starfield(), width_px: 1920, height_px: 1080),
-    case state.step {
-      ShowSequenceStep(_, anim) -> animation.view_now(anim)
-      TitleStep(anim) ->
-        p.combine([
-          animation.view_now(anim),
-          stars
-            |> list.map(view_star(_, False))
-            |> p.combine,
-        ])
-      GuessStep(_) -> {
-        stars
-        |> list.map(fn(star) {
-          view_star(star, is_hovering_star(star, state.mouse))
-        })
-        |> p.combine
+  case state.step {
+    TutorialStep(anim) -> p.combine([animation.view_now(anim)])
+    _ -> {
+      let level = case state.level > 0 {
+        False -> p.blank()
+        True ->
+          p.text("Level " <> int.to_string(state.level), px: 50)
+          |> p.fill(colour.white)
+          |> p.translate_xy(100.0, 100.0)
       }
-      GameOver ->
-        stars
-        |> list.map(view_sad_star)
-        |> p.combine
-    },
-    telescope(state.mouse),
-    level,
-  ])
+
+      p.combine([
+        solid_background(),
+        p.image(asset.starfield(), width_px: 1920, height_px: 1080),
+        case state.step {
+          ShowSequenceStep(_, anim) -> animation.view_now(anim)
+          TitleStep(anim) ->
+            p.combine([
+              animation.view_now(anim),
+              stars
+                |> list.map(view_star(_, False))
+                |> p.combine,
+            ])
+          GuessStep(_) -> {
+            stars
+            |> list.map(fn(star) {
+              view_star(star, is_hovering_star(star, state.mouse))
+            })
+            |> p.combine
+          }
+          GameOver ->
+            stars
+            |> list.map(view_sad_star)
+            |> p.combine
+          TutorialStep(anim) -> panic as "unreachable, already handled"
+        },
+        telescope(state.mouse),
+        level,
+      ])
+    }
+  }
 }
 
 pub fn main() {
