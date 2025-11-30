@@ -5,7 +5,6 @@ import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option
-import gleam/result
 import gleam/string
 import gleam_community/colour
 import gleam_community/maths
@@ -265,7 +264,7 @@ fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
                 view_star(star, highlight: True, effect: fn(p) {
                   let t = maths.sin(t *. maths.pi())
                   echo t
-                  p |> p.scale_uniform(1.0 +. t *. 0.05)
+                  p |> p.scale_uniform(1.0 +. t *. 0.07)
                 })
             }
           })
