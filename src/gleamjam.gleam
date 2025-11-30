@@ -225,12 +225,20 @@ fn init(_: canvas.Config) -> State {
 fn go_to_show_sequence(state: State) -> State {
   let #(sequence, seed) = random_sequence(state.seed, state.level)
 
+  let view_all =
+    stars
+    |> list.map(view_star(_, highlight: False, effect: fn(p) { p }))
+    |> p.combine
+  let assert Ok(start_pause) = animation.constant(view_all, duration: 800.0)
+
   State(
     ..state,
     seed:,
     step: ShowSequenceStep(
       sequence,
-      animation.start_playing(animate_sequence(sequence)),
+      animation.start_playing(
+        start_pause |> animation.then(animate_sequence(sequence)),
+      ),
     ),
   )
 }
@@ -248,7 +256,7 @@ fn with_sound(
       },
       duration: 1.0,
     )
-  sound_anim |> paint_animation.continue(animation)
+  paint_animation.parallel(sound_anim, animation)
 }
 
 fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
@@ -281,7 +289,7 @@ fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
     |> p.combine
 
   let Sequence(sequence) = sequence
-  let assert Ok(end) = paint_animation.empty(1.0)
+  let assert Ok(end) = animation.constant(view_all, duration: 100.0)
   let assert Ok(pause) = animation.constant(view_all, duration: 700.0)
 
   case sequence {
