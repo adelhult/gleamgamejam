@@ -1,0 +1,45 @@
+name: Build and deploy game
+
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "26.0.2"
+          gleam-version: "1.13.0"
+          rebar3-version: "3"
+          # elixir-version: "1.15.4"
+      - name: Build game
+        run: |
+          gleam deps download
+          gleam build
+          mkdir -p dist
+          cp -r ./build/dev/javascript ./dist/build
+          cp ./index.html ./dist/index.html
+          cp ./assets ./dist/assets
+          sed -i 's|./build/dev/javascript/gleamjam/gleamjam.mjs|./build/gleamjam/gleamjam.mjs|' dist/index.html
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./dist"
+
+  deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{steps.deployment.outputs.page_url}}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
