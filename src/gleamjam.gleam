@@ -383,15 +383,12 @@ fn telescope(center: #(Float, Float)) {
 
 fn view(state: State) -> Picture {
   case state.step {
-    TutorialStep(anim) -> p.combine([animation.view_now(anim)])
+    TutorialStep(anim) -> animation.view_now(anim)
     _ -> {
-      let level = case state.level > 0 {
-        False -> p.blank()
-        True ->
-          p.text("Level " <> int.to_string(state.level), px: 50)
-          |> p.fill(colour.white)
-          |> p.translate_xy(100.0, 100.0)
-      }
+      let level =
+        p.text("Level " <> int.to_string(state.level), px: 50)
+        |> p.fill(colour.white)
+        |> p.translate_xy(100.0, 100.0)
 
       p.combine([
         solid_background(),
@@ -416,7 +413,7 @@ fn view(state: State) -> Picture {
             stars
             |> list.map(view_sad_star)
             |> p.combine
-          TutorialStep(anim) -> panic as "unreachable, already handled"
+          TutorialStep(_) -> panic as "unreachable, already handled"
         },
         telescope(state.mouse),
         level,
