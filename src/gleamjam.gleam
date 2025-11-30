@@ -363,21 +363,6 @@ fn is_hovering_star(star: StarInfo, mouse_pos: #(Float, Float)) {
   distance_sq <=. r *. r
 }
 
-fn debug(state: State) {
-  p.combine([
-    p.text(
-      "Mouse: "
-        <> int.to_string(float.round(state.mouse.0))
-        <> ", "
-        <> int.to_string(float.round(state.mouse.1)),
-      px: 50,
-    )
-    |> p.translate_xy(50.0, 50.0),
-    // p.text("Time: " <> float.to_string(state.dt), px: 50)
-  //   |> p.translate_xy(80.0, 80.0),
-  ])
-}
-
 const canvas_width = 1920.0
 
 const canvas_height = 1080.0
