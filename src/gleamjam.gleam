@@ -8,6 +8,7 @@ import gleam/option
 import gleam/result
 import gleam/string
 import gleam_community/colour
+import gleam_community/maths
 import paint.{type Picture} as p
 import paint/canvas
 import paint/event
@@ -83,7 +84,11 @@ const stars = [
   ),
 ]
 
-fn view_star(star: StarInfo, highlight highlight: Bool) {
+fn view_star(
+  star: StarInfo,
+  highlight highlight: Bool,
+  effect effect: fn(Picture) -> Picture,
+) {
   p.image(
     case highlight {
       False -> star.normal_image()
@@ -92,6 +97,7 @@ fn view_star(star: StarInfo, highlight highlight: Bool) {
     width_px: 150,
     height_px: 150,
   )
+  |> effect
   |> p.translate_xy(-150.0 /. 2.0, -150.0 /. 2.0)
   |> p.translate_xy(star.pos.0, star.pos.1)
 }
@@ -247,15 +253,32 @@ fn with_sound(
 }
 
 fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
-  let view_blink = fn(id: StarId) -> Picture {
-    stars
-    |> list.map(fn(star) { view_star(star, highlight: star.id == id) })
-    |> p.combine
+  let animate_blink = fn(id: StarId) {
+    let assert Ok(anim) =
+      animation.new(
+        fn(t) {
+          stars
+          |> list.map(fn(star) {
+            case star.id == id {
+              False -> view_star(star, highlight: False, effect: fn(p) { p })
+              True ->
+                view_star(star, highlight: True, effect: fn(p) {
+                  let t = maths.sin(t *. maths.pi())
+                  echo t
+                  p |> p.scale_uniform(1.0 +. t *. 0.05)
+                })
+            }
+          })
+          |> p.combine
+        },
+        duration: 500.0,
+      )
+    anim
   }
 
   let view_all =
     stars
-    |> list.map(view_star(_, highlight: False))
+    |> list.map(view_star(_, highlight: False, effect: fn(p) { p }))
     |> p.combine
 
   let Sequence(sequence) = sequence
@@ -267,8 +290,7 @@ fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
     [star_id, ..rest] ->
       pause
       |> paint_animation.then(
-        animation.constant(view_blink(star_id), duration: 500.0)
-        |> result.lazy_unwrap(fn() { panic as "duration 0" })
+        animate_blink(star_id)
         |> with_sound(get_star(star_id).sound()),
       )
       |> animation.then(animate_sequence(Sequence(rest)))
@@ -407,13 +429,17 @@ fn view(state: State) -> Picture {
             p.combine([
               animation.view_now(anim),
               stars
-                |> list.map(view_star(_, False))
+                |> list.map(view_star(_, False, fn(p) { p }))
                 |> p.combine,
             ])
           GuessStep(_) -> {
             stars
             |> list.map(fn(star) {
-              view_star(star, is_hovering_star(star, state.mouse))
+              view_star(
+                star,
+                is_hovering_star(star, state.mouse),
+                effect: fn(p) { p },
+              )
             })
             |> p.combine
           }
