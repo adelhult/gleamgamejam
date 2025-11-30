@@ -98,3 +98,7 @@ pub fn pickup3() {
 pub fn game_over() {
   audio.new("./assets/explosion.wav")
 }
+
+pub fn level_up() {
+  audio.new("./assets/levelUp.wav")
+}

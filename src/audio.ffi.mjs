@@ -1,5 +1,5 @@
 const AUDIO_CACHE = new Map();
-const THROTTLE_MS = 1200; // adjust as needed
+const THROTTLE_MS = 800; // adjust as needed
 
 export function new_audio(path) {
   if (AUDIO_CACHE.has(path)) {

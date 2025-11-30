@@ -206,14 +206,14 @@ fn animate_sequence(sequence: Sequence) -> Animation(Picture) {
 
   let Sequence(sequence) = sequence
   let assert Ok(end) = paint_animation.empty(1.0)
-  let assert Ok(pause) = animation.constant(view_all, duration: 1000.0)
+  let assert Ok(pause) = animation.constant(view_all, duration: 700.0)
 
   case sequence {
     [] -> end
     [star_id, ..rest] ->
       pause
       |> paint_animation.then(
-        animation.constant(view_blink(star_id), duration: 1000.0)
+        animation.constant(view_blink(star_id), duration: 500.0)
         |> result.lazy_unwrap(fn() { panic as "duration 0" })
         |> with_sound(get_star(star_id).sound()),
       )
@@ -241,8 +241,10 @@ fn update(state: State, event: event.Event) -> State {
             option.Some(updated_anim) ->
               State(..state, step: ShowSequenceStep(sequence, updated_anim))
           }
-        GuessStep(Sequence([])) ->
+        GuessStep(Sequence([])) -> {
+          audio.play(asset.level_up(), False)
           go_to_show_sequence(State(..state, level: state.level + 1))
+        }
         GuessStep(Sequence(_)) -> state
         GameOver -> state
       }
@@ -308,7 +310,7 @@ fn solid_background() {
 }
 
 fn telescope(center: #(Float, Float)) {
-  let scale = 2.0
+  let scale = 1.2
   p.image(asset.telescope(), width_px: 4084, height_px: 2297)
   |> p.scale_uniform(scale)
   |> p.translate_xy(
@@ -318,7 +320,6 @@ fn telescope(center: #(Float, Float)) {
 }
 
 fn view(state: State) -> Picture {
-  // TODO:
   let level = case state.level > 0 {
     False -> p.blank()
     True ->
