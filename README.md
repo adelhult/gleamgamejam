@@ -1,31 +1,14 @@
-# gleamjam
+My tiny memory game for Gleam Game Jam 2025 (Theme: LUCY IN THE SKY WITH DIAMONDS).
 
-watchexec -e gleam -w src -- gleam build
-watchexec -r -e mjs,html --no-vcs-ignore -- python -m http.server 3000
+Play at github pages: https://adelhult.github.io/gleamgamejam/
 
-[![Package Version](https://img.shields.io/hexpm/v/gleamjam)](https://hex.pm/packages/gleamjam)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/gleamjam/)
-
-```sh
-gleam add gleamjam@1
-```
-```gleam
-import gleamjam
-
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
-```
-
-Further documentation can be found at <https://hexdocs.pm/gleamjam>.
 
 ## Development
-
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
+Recompile Gleam source on changes
+```bash
+watchexec -e gleam -w src -- gleam build
 ```
-
-
-# Assets
-https://game-icons.net/1x1/delapouite/sparkles.html
+Restart http server
+```bash
+watchexec -r -e mjs,html --no-vcs-ignore -- python -m http.server 3000
+```
