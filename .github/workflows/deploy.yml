@@ -22,7 +22,7 @@ jobs:
           mkdir -p dist
           cp -r ./build/dev/javascript ./dist/build
           cp ./index.html ./dist/index.html
-          cp ./assets ./dist/assets
+          cp -r ./assets ./dist/assets
           sed -i 's|./build/dev/javascript/gleamjam/gleamjam.mjs|./build/gleamjam/gleamjam.mjs|' dist/index.html
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
